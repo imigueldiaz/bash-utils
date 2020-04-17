@@ -22,10 +22,6 @@ if [[ $(id -u) -ne 0 ]] ; then
     printf "  %b Por favor, ejecutame como root o sudo.\\n"  "${CROSS}"; exit 1 ;
 fi
 
-if [[ -z "$USUARIO" ]]; then
-    printf "  %b %s\\n\\t%s\\n\\n" "${CROSS}" "Necesito el nombre de usuario a añadir al grupo docker." "Uso: sudo docker_prepare.sh <usuario>"; exit 1;
-fi
-
 printf "  %b Actualizando paquetes.\\n" "${INFO}"
 DEBIAN_FRONTEND=noninteractive sudo apt update && DEBIAN_FRONTEND=noninteractive sudo apt upgrade -y
 
@@ -41,12 +37,15 @@ sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debi
 printf "  %b instalando Docker engine.\\n" "${INFO}"
 sudo DEBIAN_FRONTEND=noninteractive apt update && sudo  debconf-apt-progress -- apt install -y docker-ce docker-ce-cli containerd.io
 
-if [[ -z "$(getent group docker)" ]]; then
-    printf "  %b Creando el grupo docker.\\n" "${INFO}" ; sudo groupadd docker;
+if [[ -n "$USUARIO" ]]; then
+    if [[ -z "$(getent group docker)" ]]; then
+        printf "  %b Creando el grupo docker.\\n" "${INFO}" ; sudo groupadd docker;
+    fi
+    
+    printf "  %b Añadiendo a %s al grupo docker.\\n"  "${INFO}" "$USUARIO"
+    sudo usermod -aG docker "$USUARIO"
+    
 fi
-
-printf "  %b Añadiendo a %s al grupo docker.\\n"  "${INFO}" "$USUARIO"
-sudo usermod -aG docker "$USUARIO"
 
 printf "  %b Habilitando Docker en el arranque del sistema.\\n" "${INFO}"
 sudo systemctl enable docker
