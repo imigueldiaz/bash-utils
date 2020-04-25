@@ -5,6 +5,9 @@
 # exit on any error.
 set -e
 
+# Current stable branch of debian, change if needed.
+BRANCH="buster"
+
 # Colors
 COL_NC='\e[0m' # No Color
 COL_LIGHT_GREEN='\e[1;32m'
@@ -41,7 +44,7 @@ install_docker() {
     curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
     
     printf "  %b Adding docker repository .\\n" "${INFO}"
-    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $BRANCH stable"
     
     printf "  %b Installing Docker CE and client.\\n" "${INFO}"
     sudo DEBIAN_FRONTEND=noninteractive apt update && sudo  debconf-apt-progress -- apt install -y docker-ce docker-ce-cli containerd.io
@@ -75,13 +78,20 @@ install_docker_compose() {
     printf "  %b Installing  Docker Compose.\\n" "${INFO}"
     sudo curl -s https://api.github.com/repos/docker/compose/releases/latest \
     | grep browser_download_url \
-    | grep docker-compose-Linux-x86_64 \
+    | grep "docker-compose-Linux-x86_64" \
     | cut -d '"' -f 4 \
     | wget -qi -
     
-    sudo mv docker-compose-Linux-x86_64 /usr/local/bin/docker-compose
-    
-    sudo chmod 755 /usr/local/bin/docker-compose
+
+    if sha256sum --quiet --check docker-compose-Linux-x86_64.sha256; then
+        printf "  %b Docker Compose SHA256 checksum is OK.\\n" "${INFO}"
+        sudo mv docker-compose-Linux-x86_64 /usr/local/bin/docker-compose
+        sudo chmod 755 /usr/local/bin/docker-compose
+        sudo rm -f docker-compose-Linux-x86_64.sha256
+    else
+        printf "  %b Docker Compose SHA256 checksum is KO.\\n" "${CROSS}"
+        exit 1
+    fi
     
 }
 
