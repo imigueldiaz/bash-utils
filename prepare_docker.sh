@@ -26,7 +26,7 @@ KO="[${COL_LIGHT_RED}KO${COL_NC}]"
 
 # User to add to docker group if it is passed as argument.
 USUARIO="$1"
-
+USUARIO_HOME=""
 # TLS Certificates related variables
 CA_PWD=""
 PASS_FILE="CertPass"
@@ -69,7 +69,9 @@ install_docker() {
 ### Add user to docker group on demand ###
 add_docker_user() {
     
-    if [[ -n "$USUARIO" ]]; then
+    if [[ -n "${USUARIO}" ]]; then
+
+        USUARIO_HOME=$(sudo awk -F: -v v="${USUARIO}" '{if ($1==v) print $6}' /etc/passwd)
 
         if [[ -z "$(getent group docker)" ]]; then
             printf "  %b Creating docker group.\\n" "${INFO}" 
@@ -136,6 +138,8 @@ process_done() {
 ### Cleans stuff
 mr_proper() {
     
+    printf "  %b Cleaning variables.\\n" "${INFO}"
+
     unset CA_PWD
     unset PASS_FILE
     unset CERT_IPS
@@ -187,6 +191,12 @@ generate_ca_keys() {
     generate_ca_keys_server
 
     generate_ca_keys_client
+
+    clean_certs_files
+
+    fix_certs_permissions
+
+    move_certs
 
 }
 
@@ -244,10 +254,48 @@ ask_cert_subject() {
     UNIT=$(whiptail --inputbox "Please, insert you Unit" 8 78 "Simple developer"  --title "Organization Unit" 3>&1 1>&2 2>&3)
     NAME=$(whiptail --inputbox "Please, insert a user friendly name for this certificate" 8 78 "Personal Docker Certificate"  --title "Common Name" 3>&1 1>&2 2>&3)
     SUBJECT_ALT_NAME=$(whiptail --inputbox "Please, edit the names and Ips valid for the certificate" 8 78 "${SUBJECT_ALT_NAME}"  --title "Valid FQDNs and IPs" 3>&1 1>&2 2>&3)
-
-
     CERT_SUBJ="/C=${COUNTRY}/ST=${STATE}/L=${LOCATION}/O=${ORGANIZATION}/OU=${UNIT}/CN=${NAME}"
 
+}
+
+### cleans unneeded cert files. ###
+clean_certs_files() {
+
+    printf "  %b Cleaning files.\\n" "${INFO}"
+    
+    rm -vf client.csr server.csr extfile.cnf extfile-client.cnf ./*.srl
+
+}
+
+### Fixes files permissions ###
+fix_certs_permissions() {
+
+    printf "  %b Setting correct permissions.\\n" "${INFO}"
+    
+
+    chmod -v 0400 ca-key.pem key.pem server-key.pem
+    chown root:root ca-key.pem key.pem server-key.pem
+
+    if [[ -n "${USUARIO}" ]]; then
+        chmod -v 0444 ca.pem server-cert.pem cert.pem
+        chown "${USUARIO}":"${USUARIO}" ca.pem server-cert.pem cert.pem
+    fi
+
+}
+
+### Moves certificates
+move_certs() {
+
+    
+    printf "  %b Moving certificates.\\n" "${INFO}"
+    
+    sudo mkdir -p /etc/docker/certs
+    sudo mv ca-key.pem key.pem server-key.pem /etc/docker/certs
+
+    if [[ -n "${USUARIO_HOME}" ]]; then
+        sudo mkdir -p "${USUARIO_HOME}"/.docker/certs
+        sudo mv ca.pem server-cert.pem cert.pem "${USUARIO_HOME}"/.docker/certs
+    fi
 }
 
 ### HERE BEGINS THE MAGIC ###
