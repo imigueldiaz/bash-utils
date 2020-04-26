@@ -1,11 +1,14 @@
-#!/bin/bash
-# Install docker service on debian machine and prepare basic stuff, as docker-compose and TLS daemon.
+#!/usr/bin/env bash
+
+# Install docker service on debian machine and prepare basic stuff, as
+# docker-compose and TLS daemon.
 
 # exit on any error.
 set -e
 
-# name of the debian based distro. Testing (bullseye currently) is not available on https://download.docker.com/linux/debian
-# so we must use stable (buster currently). 
+# name of the debian based distro. Testing (bullseye currently) is not available
+# on https://download.docker.com/linux/debian so we must use stable (buster
+# currently). 
 BRANCH="buster"
 
 # Colors
@@ -57,7 +60,7 @@ install_docker() {
     curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
     
     printf "  %b Adding docker repository .\\n" "${INFO}"
-    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $BRANCH stable"
+    sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian ${BRANCH} stable"
     
     printf "  %b Installing Docker CE and client.\\n" "${INFO}"
     sudo DEBIAN_FRONTEND=noninteractive apt update && sudo  debconf-apt-progress -- apt install -y docker-ce docker-ce-cli containerd.io
@@ -74,7 +77,7 @@ add_docker_user() {
         
         fi
         
-        printf "  %b Adding %s on docker group.\\n"  "${INFO}" "$USUARIO"
+        printf "  %b Adding %s on docker group.\\n"  "${INFO}" "${USUARIO}"
         sudo usermod -aG docker "$USUARIO"
         
     fi
@@ -133,24 +136,24 @@ process_done() {
 ### Cleans stuff
 mr_proper() {
     
-unset CA_PWD
-unset PASS_FILE
-unset CERT_IPS
-unset CERT_DOMAIN
-unset CERT_CONF_FILE
-unset SUBJECT_ALT_NAME
-unset PASS_METHOD
-unset CERT_METHOD
-unset CERT_SUBJ
+    unset CA_PWD
+    unset PASS_FILE
+    unset CERT_IPS
+    unset CERT_DOMAIN
+    unset CERT_CONF_FILE
+    unset SUBJECT_ALT_NAME
+    unset PASS_METHOD
+    unset CERT_METHOD
+    unset CERT_SUBJ
 
 }
 
  ### Asks for CA keys password ###
 ask_ca_key() {
 
-    if [[ -r "$PASS_FILE" ]]; then
+    if [[ -r "${PASS_FILE}" ]]; then
 
-        CA_PWD=$PASS_FILE
+        CA_PWD=${PASS_FILE}
         PASS_METHOD="file"
 
     else
@@ -176,7 +179,7 @@ ask_ca_key() {
     
 }
 
-### Generates the CA keys
+### Generates the TLS certificates ###
 generate_ca_keys() {
     
     printf "  %b Generating certificates with supplied password.\\n" "${INFO}"
@@ -187,6 +190,7 @@ generate_ca_keys() {
 
 }
 
+### Generates the client certificates ###
 generate_ca_keys_client() {
 
     printf "  %b Generating client certificates.\\n" "${INFO}"
@@ -200,15 +204,16 @@ generate_ca_keys_client() {
 
 }
 
+### Generates the CA and server certeficates ###
 generate_ca_keys_server() {
 
     
     printf "  %b Generating CA and server certificates.\\n" "${INFO}"
     
-    openssl genrsa -aes256 -passout "$PASS_METHOD":"$CA_PWD" -out ca-key.pem 4096
+    openssl genrsa -aes256 -passout "${PASS_METHOD}":"${CA_PWD}" -out ca-key.pem 4096
     
     
-    if [[ -r "$CERT_CONF_FILE" ]]; then
+    if [[ -r "${CERT_CONF_FILE}" ]]; then
 
         CERT_METHOD=" -config ${CERT_CONF_FILE}"
     else
@@ -229,6 +234,7 @@ generate_ca_keys_server() {
 
 }
 
+### Asks about server certificate details ###
 ask_cert_subject() {
 
     COUNTRY=$(whiptail --inputbox "Please, insert you Country code" 8 78 "ES"  --title "Country Code" 3>&1 1>&2 2>&3)
@@ -254,8 +260,3 @@ install_docker_compose
 ask_ca_key
 process_done
 mr_proper
-
-
-
-
-
