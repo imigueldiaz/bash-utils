@@ -6,7 +6,7 @@
 # exit on any error.
 set -e
 
-# name of the debian based distro. Testing (bullseye currently) is not available
+# Name of the debian based distro. Testing (bullseye currently) is not available
 # on https://download.docker.com/linux/debian so we must use stable (buster
 # currently). 
 BRANCH="buster"
@@ -152,8 +152,8 @@ mr_proper() {
 
 }
 
- ### Asks for CA keys password ###
-ask_ca_key() {
+ ### Prepares certificates ###
+prepare_certificates() {
 
     if [[ -r "${PASS_FILE}" ]]; then
 
@@ -197,6 +197,8 @@ generate_ca_keys() {
     fix_certs_permissions
 
     move_certs
+
+    override_docker_systemd
 
 }
 
@@ -271,31 +273,41 @@ clean_certs_files() {
 fix_certs_permissions() {
 
     printf "  %b Setting correct permissions.\\n" "${INFO}"
-    
 
     chmod -v 0400 ca-key.pem key.pem server-key.pem
-    chown root:root ca-key.pem key.pem server-key.pem
-
-    if [[ -n "${USUARIO}" ]]; then
-        chmod -v 0444 ca.pem server-cert.pem cert.pem
-        chown "${USUARIO}":"${USUARIO}" ca.pem server-cert.pem cert.pem
-    fi
-
+    chmod -v 0444 ca.pem server-cert.pem cert.pem
 }
 
 ### Moves certificates
 move_certs() {
 
-    
-    printf "  %b Moving certificates.\\n" "${INFO}"
+    printf "  %b Copying certificates.\\n" "${INFO}"
     
     sudo mkdir -p /etc/docker/certs
-    sudo mv ca-key.pem key.pem server-key.pem /etc/docker/certs
-
+    sudo cp ca-key.pem key.pem server-key.pem ca.pem server-cert.pem cert.pem /etc/docker/certs
+    
     if [[ -n "${USUARIO_HOME}" ]]; then
-        sudo mkdir -p "${USUARIO_HOME}"/.docker/certs
-        sudo mv ca.pem server-cert.pem cert.pem "${USUARIO_HOME}"/.docker/certs
+    
+        sudo mkdir -p "${USUARIO_HOME}"/.docker/
+        sudo cp -v {ca,cert,key}.pem "${USUARIO_HOME}"/.docker/
+        sudo chown -vR "${USUARIO}:${USUARIO}" "${USUARIO_HOME}/.docker/"
     fi
+}
+
+override_docker_systemd() {
+
+    printf "  %b Overriding docker.service with TLS configuration.\\n" "${INFO}"
+
+    local override_path="/etc/systemd/system/docker.service.d/"
+
+    sudo mkdir -p "$override_path"
+
+cat  <<OVERRIDE | sudo tee  "$override_path/override.conf" > /dev/null
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:2376 --tlsverify --tlscacert=/etc/docker/certs/ca.pem  --tlscert=/etc/docker/certs/server-cert.pem --tlskey=/etc/docker/certs/server-key.pem 
+
+OVERRIDE
 }
 
 ### HERE BEGINS THE MAGIC ###
@@ -303,8 +315,8 @@ move_certs() {
 test_sudo
 install_docker
 add_docker_user
-enable_docker_service
 install_docker_compose
-ask_ca_key
+prepare_certificates
+enable_docker_service
 process_done
 mr_proper
