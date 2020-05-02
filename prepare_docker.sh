@@ -91,6 +91,8 @@ enable_docker_service() {
     printf "  %b Enabling docker at boot.\\n" "${INFO}"
     sudo systemctl daemon-reload
     sudo systemctl enable docker
+    sudo systemctl start docker
+
 }
 
 
@@ -166,18 +168,21 @@ prepare_certificates() {
 
     fi
 
+    exitstatus=$?
+
     CERT_IPS=$( ip -4 -br addr show | sed -e 's/\s\+\|\//*/g' | cut -d'*' -f 3 | sed -e 's/^/IP:/' |  tr '\n' ',' | sed 's/.$//')
     CERT_DOMAIN=$(hostname --fqdn)
     SUBJECT_ALT_NAME="DNS:${CERT_DOMAIN},${CERT_IPS}"
 
-    exitstatus=$?
     
     if [ $exitstatus = 0 ] && [ -n "$CA_PWD" ]; then
         printf "  %b User entered not empty password, so TLS configuration begins.\\n" "${INFO}"
         generate_ca_keys
     else
         printf "  %b User canceled, so TLS configuration is omited.\\n" "${CROSS}"
+        enable_docker_service
         process_done
+        mr_proper
         exit 1
     fi
     
